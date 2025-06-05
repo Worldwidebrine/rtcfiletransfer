@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>filesending</title>
+  <style>
+    .sender-area {
+      background-color: lightyellow;
+      border: 4px solid black;
+      padding: 4px;
+    }
+
+    .receiver-area {
+      background-color: lightblue;
+      border: 4px solid black;
+      padding: 4px;
+    }
+
+    .connect-area {
+      border: 1px solid black;
+      padding: 5px;
+    }
+
+    input {
+      display: block;
+    }
+
+    video {
+      margin: auto;
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="sender-area">
+    Send
+  </div>
+  <div class="receiver-area">
+    Receive
+  </div>
+  <video src="./screenkeep.mp4" loop controls autoplay></video>
+  <script type="module">// @ts-check
+
+    const current_query = new URLSearchParams(window.location.search);
+
+    const chunkSize = (((() => {
+      const chunkSizeStr = current_query.get("chunksize");
+      if (chunkSizeStr) {
+        const chunkSize = parseInt(chunkSizeStr, 10);
+        if (chunkSize < 1 || Object.is(chunkSize, NaN)) {
+          return null;
+        }
+        return chunkSize;
+      }
+      return null;
+    })()) ?? 10000);
+    console.log("chunkSize", chunkSize);
+    const chunksBeforeJoinPromises = (((() => {
+      const chunksBeforeJoinStr = current_query.get("chunksbeforejoin");
+      if (chunksBeforeJoinStr) {
+        const chunksBeforeJoin = parseInt(chunksBeforeJoinStr, 10);
+        if (Object.is(chunksBeforeJoin, NaN)) {
+          return null;
+        }
+        return chunksBeforeJoin;
+      }
+      return null;
+    })()) ?? 1000);
+    console.log("chunksBeforeJoinPromises", chunksBeforeJoinPromises);
+    const enableBYOB = ((() => {
+      const disableBYOB = current_query.get("disablebyob");
+      if (disableBYOB) {
+        return (["false", "no", "0"].includes(disableBYOB.toLowerCase()));
+      }
+      return true;
+    })());
+    console.log("enableBYOB", enableBYOB);
+    const disableOffloadAPI = (current_query.get("uselocalapi") !== "true");
+
+    class IntegerString {
+      #curVal = "0";
+
+      constructor(initValue = 0) {
+        if (typeof initValue === "number") {
+          if ((!(Number.isInteger(initValue))) || initValue < 0) {
+            throw new Error("Invalid initial value for IntegerString");
+          }
+          this.#curVal = initValue.toString(10);
+          return;
+        }
+        initValue = String(initValue);
+        if (!(/^\d+$/.test(initValue))) {
+          throw new Error("Invalid initial value");
+        }
+        if (initValue === "0") {
+          return;
+        }
+        this.#curVal = initValue.replace(/^0+/, String());
+        if (this.#curVal === String()) {
+          this.#curVal = "0";
+        }
+      }
+
+      increase() {
+        const digits = [];
+        const cache = this.#curVal;
+        digits.length = cache.length;
+        let carry = 1;
+        let i = digits.length - 1;
+        while (i >= 0) {
+          if (carry > 0) {
+            const sum = parseInt(cache[i], 10) + carry;
+            digits[i] = (sum % 10).toString(10);
+            carry = Math.trunc(sum / 10);
+            i--;
+            continue;
+          }
+          digits[i] = cache[i];
+          i--;
+        }
+        if (carry > 0) {
+          digits.unshift("1");
+        }
+        this.#curVal = digits.join(String());
+      }
+
+      getString() {
+        return this.#curVal;
+      }
+    }
+
+    const chunkStream = (async function* (stream, chunkSize) {
+      if (enableBYOB && ReadableStreamBYOBReader) {
+        console.debug("Using BYOB reader");
+        const reader = stream.getReader({ mode: "byob" });
+        if (!(reader instanceof ReadableStreamBYOBReader)) {
+          throw new Error("Unexpected reader type");
+        }
+        let pendingData = null;
+        let pendingSize = 0;
+        let notbreaking = true;
+        while (notbreaking) {
+          const currentSize = chunkSize * 4; // - pendingSize;
+          const result = await (reader.read(new Uint8Array(new ArrayBuffer(currentSize)), {
+            min: currentSize // not always supported
+          }));
+          if (result.done) {
+            notbreaking = false;
+          }
+          const view = result.value;
+          if (!view) {
+            break;
+          }
+          let buf = view.buffer;
+          if (!(buf instanceof ArrayBuffer)) {
+            break;
+          }
+          const viewSize = view.byteLength;
+          const actualSize = viewSize + pendingSize;
+          if (buf.byteLength !== viewSize) {
+            buf = buf.slice(0, viewSize);
+          }
+          let isRaw = true;
+          if (pendingSize > 0) {
+            isRaw = false;
+            buf = new Blob([pendingData, buf]);
+            pendingData = null;
+            pendingSize = 0;
+          }
+          if (actualSize === chunkSize) {
+            yield (isRaw ? buf : (await (buf.arrayBuffer())));
+            continue;
+          }
+          pendingData = (isRaw ? buf : (await (buf.arrayBuffer())));
+          pendingSize = actualSize;
+          if (actualSize < chunkSize) {
+            continue;
+          }
+          while (pendingSize > chunkSize) {
+            yield pendingData.slice(0, chunkSize);
+            pendingSize -= chunkSize;
+            pendingData = pendingData.slice(chunkSize);
+          }
+          if (pendingSize === chunkSize) {
+            const moved = pendingData;
+            pendingData = null;
+            pendingSize = 0;
+            yield moved;
+          }
+        }
+        if (pendingSize > 0) {
+          yield pendingData;
+          console.log("ending chunk size", pendingSize);
+        }
+        return;
+      }
+      let pendingData = null;
+      let pendingSize = 0;
+      for await (const chunk of stream) {
+        let nextchunk;
+        if (pendingSize > 0) {
+          nextchunk = await ((new Blob([pendingData, chunk])).arrayBuffer());
+          pendingSize = 0;
+          pendingData = null;
+        } else {
+          nextchunk = chunk;
+        }
+        while (nextchunk.byteLength >= chunkSize) {
+          const moved = nextchunk.slice(0, chunkSize);
+          nextchunk = nextchunk.slice(chunkSize);
+          yield moved;
+        }
+        pendingData = nextchunk;
+        pendingSize = nextchunk.byteLength;
+      }
+      while (pendingSize > 0) {
+        if (pendingSize <= chunkSize) {
+          yield pendingData;
+          console.log("ending chunk size", pendingSize);
+          pendingSize = 0;
+          pendingData = null;
+          return;
+        }
+        const moved = pendingData.slice(0, chunkSize);
+        pendingData = pendingData.slice(chunkSize);
+        yield moved;
+        pendingSize -= chunkSize;
+      }
+    });
+    const servers = [
+      "stun.cloudflare.com:3478",
+      "stun1.l.google.com:19302",
+      "stun2.l.google.com:19302"
+    ];
+    const iceServers = [
+      ...(servers.map((v) => ({
+        urls: `stun:${v}`
+      })))
+    ];
+
+    const uint8zero = Object.assign(new Uint8Array(1), { 0: 0 });
+
+    (async () => {
+      let client = null;
+
+      async function sendChunk(chunk, index) {
+        const data = await ((new Blob([index, uint8zero, chunk])).arrayBuffer());
+        for (; ;) {
+          try {
+            client.dc.send(data);
+            break;
+          } catch (e) {
+            console.debug(e);
+          }
+          await ({
+            then(res, rej) {
+              window.setTimeout(res, Math.trunc(Math.random() * 64));
+            }
+          });
+        }
+      }
+
+      const senderarea = document.querySelector("div.sender-area");
+      const inviteui = senderarea.appendChild(Object.assign(document.createElement("div"), {
+        classList: ["connect-area"]
+      }));
+      const invite = inviteui.appendChild(Object.assign(document.createElement("label"), {
+        innerText: "Invite"
+      })).appendChild(Object.assign(document.createElement("input"), {
+        readOnly: true
+      }));
+      invite.addEventListener("focus", () => {
+        invite.select();
+      });
+      invite.addEventListener("click", () => {
+        invite.select();
+      });
+      invite.disabled = true;
+      const client_acception_reply = inviteui.appendChild(Object.assign(document.createElement("label"), {
+        innerText: "Reply"
+      })).appendChild(document.createElement("input"));
+      client_acception_reply.disabled = true;
+      const invbtn = Object.assign(inviteui.appendChild(document.createElement("button")), {
+        innerText: "Connect"
+      });
+      invbtn.disabled = true;
+      const fileInput = Object.assign(senderarea.appendChild(document.createElement("input")), {
+        type: "file"
+      });
+      const sendbtn = Object.assign(senderarea.appendChild(document.createElement("button")), {
+        innerText: "Send"
+      });
+      const msgshow = senderarea.appendChild(document.createElement("p"));
+      sendbtn.addEventListener("click", async () => {
+        const stayUncaught = ((async () => {
+          if (!(client?.dc)) {
+            msgshow.innerText = "Not connected!";
+            return;
+          }
+          if (!(fileInput.files?.[0])) {
+            msgshow.innerText = "No file selected!";
+            return;
+          }
+          const { file_name, file_type, file } = ((() => {
+            const file = fileInput.files?.[0];
+            return ({
+              file_name: file.name,
+              file_type: file.type,
+              file: new Blob([file], { type: file.type })
+            });
+          })());
+          sendbtn.disabled = true;
+          sendbtn.innerText = `Sending... "${file_name}"`;
+          msgshow.innerText = "Sending metadata";
+          fileInput.value = "";
+          const metadata = [
+            await ((new Blob(["file_name", uint8zero, file_name])).arrayBuffer()),
+            await ((new Blob(["file_type", uint8zero, file_type])).arrayBuffer())
+          ];
+          for (const chunk of metadata) {
+            client.dc.send(chunk);
+          }
+
+          msgshow.innerText = `Sending metadata... Counting chunks (${chunkSize} bytes = 1 chunk)`;
+          const chunk_count = new IntegerString;
+          {
+            let pendingSize = 0;
+            for await (const chunk of file.stream()) {
+              let nextSize = 0;
+              if (pendingSize > 0) {
+                nextSize = pendingSize + chunk.byteLength;
+                pendingSize = 0;
+              } else {
+                nextSize = chunk.byteLength;
+              }
+              while (nextSize >= chunkSize) {
+                chunk_count.increase();
+                nextSize -= chunkSize;
+                msgshow.innerText = `Sending metadata... Counting chunks ${chunk_count.getString()} (${chunkSize} bytes = 1 chunk)`;
+              }
+              pendingSize = nextSize;
+            }
+            while (pendingSize > 0) {
+              if (pendingSize <= chunkSize) {
+                chunk_count.increase();
+                pendingSize = 0;
+                break;
+              }
+              chunk_count.increase();
+              pendingSize -= chunkSize;
+            }
+          }
+          msgshow.innerText = `Sending metadata... ${chunk_count.getString()} chunks in total (${chunkSize} bytes = 1 chunk)`;
+          console.log("chunk_count", chunk_count.getString());
+          try {
+            const chunk_head_with_max_index_blob = new Blob([chunk_count.getString(), uint8zero]);
+            const chunk_count_metadata = new Blob(["chunk_count", uint8zero, chunk_head_with_max_index_blob]);
+            const size_over_chunk_head = chunk_count_metadata.size - chunk_head_with_max_index_blob.size;
+            const fill_size = ((new IntegerString(chunkSize - size_over_chunk_head)).getString());
+            const parts = [chunk_count_metadata];
+            for (const filled = new IntegerString; filled.getString() !== fill_size; filled.increase()) {
+              parts.push(uint8zero);
+            }
+            const testmsg = await ((new Blob(parts)).arrayBuffer());
+            client.dc.send(testmsg);
+            metadata.push(testmsg);
+            console.log("Test sending largest message succeeded");
+          } catch (e) {
+            console.error("Test sending largest message failed", e);
+            throw new Error("File too large, browser message size limitation exceeded when testing largest message");
+          }
+          {
+            let receiverNotReady = true;
+            (async () => {
+              await (client.receiverReady);
+              receiverNotReady = false;
+              console.log("receiver ready");
+            })();
+            while (receiverNotReady) {
+              for (const chunk of metadata) {
+                for (; ;) {
+                  await ({
+                    then(res, rej) {
+                      window.requestAnimationFrame(() => res());
+                    }
+                  });
+                  try {
+                    client.dc.send(chunk);
+                    break;
+                  } catch (e) {
+                    console.debug(e);
+                  }
+                }
+              }
+            }
+          }
+          metadata.length = 0;
+
+          msgshow.innerText = `start sending ${chunk_count.getString()} chunks (${chunkSize} bytes = 1 chunk)`;
+          const promises = ((() => {
+            if (chunksBeforeJoinPromises > 0) {
+              return [];
+            }
+            const realarr = [];
+            const fake = Object.create(realarr);
+            Object.defineProperty(fake, "constructor", {
+              value: realarr.constructor,
+              configurable: false,
+              writable: false
+            });
+            if (!(fake instanceof Array)) {
+              console.debug("Failed to create fake array");
+            }
+            Object.defineProperty(fake, "length", {
+              get() {
+                return 0;
+              },
+              set() {
+                return;
+              },
+              configurable: false
+            });
+            Object.defineProperty(fake, "push", {
+              value: ((p) => {
+                p.catch((err) => {
+                  console.error(err);
+                });
+              }),
+              writable: false,
+              configurable: false
+            });
+            return fake;
+          })());
+          const chunkindex = new IntegerString;
+          const sentCount = new IntegerString;
+          for await (const chunk of chunkStream(file.stream(), chunkSize)) {
+            promises.push(sendChunk(chunk, chunkindex.getString()).then(() => {
+              sentCount.increase();
+            }));
+            msgshow.innerText = `sent ${sentCount.getString()}/${chunk_count.getString()} sending chunk(id=${chunkindex.getString()})`;
+            chunkindex.increase();
+
+            if (chunk.byteLength !== chunkSize) {
+              console.debug("Weird chunk size sending", chunk.byteLength);
+            }
+            if (promises.length >= chunksBeforeJoinPromises) {
+              msgshow.innerText = `sent ${sentCount.getString()}/${chunk_count.getString()} before next(id=${chunkindex.getString()}) joining last ${promises.length} chunks`;
+              for (const p of promises) {
+                await p;
+              }
+              promises.length = 0;
+              msgshow.innerText = `sent ${sentCount.getString()}/${chunk_count.getString()}`;
+            }
+          }
+          msgshow.innerText = `sent ${sentCount.getString()}/${chunk_count.getString()} joining last ${promises.length} chunks`;
+          for (const p of promises) {
+            await p;
+          }
+          if (sentCount.getString() !== chunk_count.getString()) {
+            if (chunksBeforeJoinPromises > 0) {
+              console.error("sent count mismatch", sentCount.getString(), chunk_count.getString());
+              msgshow.innerText = `Please wait: after joining all, unexpected mismatch ${sentCount.getString()}/${chunk_count.getString()}`;
+            } else {
+              console.debug("sent count mismatch", sentCount.getString(), chunk_count.getString());
+            }
+            do {
+              await ({
+                then(res, rej) {
+                  window.requestAnimationFrame(() => res());
+                }
+              });
+            } while (sentCount.getString() !== chunk_count.getString());
+          }
+          msgshow.innerText = `All finished! sent all ${chunk_count.getString()} chunks`;
+          console.log("sent", chunkindex.getString(), sentCount.getString(), "total", chunk_count.getString());
+        })());
+        stayUncaught.catch((err) => {
+          console.log("caught uncaught err");
+          console.log(err);
+          msgshow.innerText = "Error: " + err;
+        });
+        return stayUncaught;
+      });
+      const peer = new RTCPeerConnection({ iceServers });
+      const dc = peer.createDataChannel("websocket", {
+        ordered: false
+      });
+      const promisedCandidates = ((async () => ({ // construct promise without class
+        then(res, rej) { // must await createOffer call return
+          const candidates = [];
+          peer.addEventListener("icecandidate", (ev) => {
+            if (!(ev.candidate)) {
+              res(candidates);
+              return;
+            }
+            candidates.push(ev.candidate);
+            console.debug(ev.candidate);
+          });
+        }
+      }))());
+      console.log(promisedCandidates);
+
+      await peer.setLocalDescription(await peer.createOffer());
+      console.log(peer.localDescription);
+      {
+        msgshow.innerText = "Waiting for STUN candidates";
+        const candidates = await promisedCandidates;
+        msgshow.innerText = String();
+        client = { peer };
+        const offer = JSON.stringify({
+          candidates,
+          offer: (peer.localDescription)
+        });
+        console.log("json str len", offer.length);
+        const offerblob = await ((new Response((new Blob([offer])).stream().pipeThrough(new CompressionStream("gzip")))).blob());
+        const dataurl = await ({ // construct instant promise without class
+          then(res, rej) {
+            const fr = new FileReader;
+            fr.addEventListener("load", () => {
+              res(fr.result);
+            });
+            fr.readAsDataURL(offerblob);
+          }
+        });
+        console.log("dataurl str len", dataurl.length);
+        invite.value = dataurl;
+      }
+      invite.disabled = false;
+      client_acception_reply.disabled = false;
+      invbtn.disabled = false;
+
+      const connectevent = (async () => {
+        if (String(client_acception_reply.value).length < 5 || String(invite.value).length < 5) {
+          msgshow.innerText = "Error: reply is empty";
+          return;
+        }
+        msgshow.innerText = "parsing reply";
+        const unzip = new Response((await fetch(client_acception_reply.value)).body.pipeThrough(new DecompressionStream("gzip")));
+        const result = await unzip.json();
+        console.log(result);
+        const dcToBeReady = ((async () => ({ // construct promise without class
+          then(res, rej) {
+            dc.addEventListener("close", (e) => {
+              rej(e);
+              console.log("dc closed");
+            });
+            dc.addEventListener("closing", (e) => {
+              rej(e);
+              console.log("dc closing");
+            });
+            const receiverReady = ((async () => ({
+              then(res, rej) {
+                dc.addEventListener("message", ({ data }) => {
+                  res();
+                });
+              }
+            }))());
+            dc.addEventListener("open", () => {
+              res({ receiverReady });
+            });
+          }
+        }))());
+        await (peer.setRemoteDescription(result.answer));
+        await (peer.addIceCandidate(result.candidates));
+        msgshow.innerText = "reply parsed. waiting for socket";
+        const { receiverReady } = await dcToBeReady;
+
+        client.receiverReady = receiverReady;
+        client.dc = dc;
+
+        msgshow.innerText = "Connected";
+        console.log("client join", client);
+
+        invite.value = client_acception_reply.value = String();
+        inviteui.style.display = "none";
+      });
+      invbtn.addEventListener("click", async function listener() {
+        const stayUncaught = connectevent();
+        invbtn.removeEventListener("click", listener);
+        stayUncaught.catch((err) => {
+          console.log("caught uncaught err");
+          console.log(err);
+          msgshow.innerText = err;
+        });
+        return stayUncaught;
+      });
+    })();
+
+    (async () => {
+      const receiverarea = document.querySelector("div.receiver-area");
+      const inviteui = receiverarea.appendChild(Object.assign(document.createElement("div"), {
+        classList: ["connect-area"]
+      }));
+      const invite = inviteui.appendChild(Object.assign(document.createElement("label"), {
+        innerText: "Invite"
+      })).appendChild(document.createElement("input"));
+      const acc = inviteui.appendChild(Object.assign(document.createElement("label"), {
+        innerText: "Reply"
+      })).appendChild(Object.assign(document.createElement("input"), {
+        readOnly: true
+      }));
+      acc.disabled = true;
+      acc.addEventListener("focus", () => {
+        acc.select();
+      });
+      acc.addEventListener("click", () => {
+        acc.select();
+      });
+      const joinbtn = Object.assign(inviteui.appendChild(document.createElement("button")), {
+        innerText: "try Connect"
+      });
+      const msgshow = receiverarea.appendChild(document.createElement("p"));
+
+      const peer = new RTCPeerConnection({ iceServers });
+      const promisedDC = ((async () => ({
+        then(res, rej) {
+          peer.addEventListener("datachannel", (ev) => {
+            res(ev.channel);
+            console.log(ev);
+          });
+        }
+      }))());
+      const clickbtn = (async () => {
+        joinbtn.disabled = true;
+        if (String(invite.value).length < 5) {
+          joinbtn.disabled = false;
+          return;
+        }
+        const unzip = new Response((await fetch(invite.value)).body.pipeThrough(new DecompressionStream("gzip")));
+        const result = await (unzip.json());
+        console.log(result);
+        invite.readOnly = true;
+        invite.disabled = true;
+
+        const promisedCandidates = ((async () => ({
+          then(res, rej) {
+            const candidates = [];
+            peer.addEventListener("icecandidate", (ev) => {
+              if (!(ev.candidate)) {
+                res(candidates);
+                return;
+              }
+              candidates.push(ev.candidate);
+              console.debug(ev.candidate);
+            });
+          }
+        }))());
+        await (peer.setRemoteDescription(result.offer));
+        await (peer.addIceCandidate(result.candidates));
+        await (peer.setLocalDescription(await peer.createAnswer()));
+        console.log(peer.localDescription);
+        {
+          msgshow.innerText = "Waiting for STUN candidates";
+          const candidates = await promisedCandidates;
+          msgshow.innerText = String();
+          const answer = JSON.stringify({
+            candidates,
+            answer: (peer.localDescription)
+          });
+          console.log("json str len", answer.length);
+          const gzip = new Response((new Blob([answer])).stream().pipeThrough(new CompressionStream("gzip")));
+          const answerblob = await (gzip.blob());
+          const dataurl = await ({
+            then(res, rej) {
+              const fr = new FileReader;
+              fr.addEventListener("load", () => {
+                res(fr.result);
+              });
+              fr.readAsDataURL(answerblob);
+            }
+          });
+          console.log("dataurl str len", dataurl.length);
+          acc.value = dataurl;
+        }
+        acc.disabled = false;
+
+        console.log("trying to join");
+        msgshow.innerText = "Waiting for socket";
+        const dc = await promisedDC;
+        console.log("dc created");
+
+        acc.disabled = true;
+        acc.value = String();
+        invite.value = String();
+        inviteui.style.display = "none";
+        msgshow.innerText = "Connected";
+
+        const dec = new TextDecoder;
+        const unwrapIntoArrayBuffer = (async (data) => {
+          if (data instanceof ArrayBuffer) {
+            return data;
+          }
+          console.debug("unwraping message of unexpected type into arraybuffer");
+          return ((new Blob([data])).arrayBuffer()); // firefox implicitly converts arraybuffer into blob
+        });
+        const { chunk_count, chunk_size } = ((() => {
+          const promisedobj = ((async () => ({
+            then(res, rej) {
+              const matchlen = (new TextEncoder).encode("chunk_count").byteLength;
+              dc.addEventListener("message", async function listener({ data }) {
+                const content = await (unwrapIntoArrayBuffer(data));
+                if (dec.decode(content.slice(0, matchlen)) === "chunk_count") {
+                  const nullterminated = content.slice(matchlen + 1);
+                  const zeroindex = ((new Uint8Array(nullterminated)).findIndex((v) => (v === 0)));
+                  const chunk_size = (content.byteLength - 1 - zeroindex);
+                  const chunk_count = dec.decode(nullterminated.slice(0, zeroindex));
+                  res({
+                    chunk_size,
+                    chunk_count
+                  });
+                  dc.removeEventListener("message", listener);
+                  console.log("chunk_size", chunk_size, "test_size", content.byteLength);
+                }
+              });
+            }
+          }))());
+          return ({
+            chunk_size: promisedobj.then(({ chunk_size }) => chunk_size),
+            chunk_count: promisedobj.then(({ chunk_count }) => chunk_count)
+          });
+        })());
+        const file_type = ((async () => ({
+          then(res, rej) {
+            const matchlen = (new TextEncoder).encode("file_type").byteLength;
+            dc.addEventListener("message", async function listener({ data }) {
+              const content = await (unwrapIntoArrayBuffer(data));
+              if (dec.decode(content.slice(0, matchlen)) === "file_type") {
+                res(dec.decode(content.slice(matchlen + 1)));
+                dc.removeEventListener("message", listener);
+                console.log("file_type", file_type);
+              }
+            });
+          }
+        }))());
+        const file_name = ((async () => ({
+          then(res, rej) {
+            const matchlen = (new TextEncoder).encode("file_name").byteLength;
+            dc.addEventListener("message", async function listener({ data }) {
+              const content = await (unwrapIntoArrayBuffer(data));
+              if (dec.decode(content.slice(0, matchlen)) === "file_name") {
+                res(dec.decode(content.slice(matchlen + 1)));
+                dc.removeEventListener("message", listener);
+                console.log("file_name", file_name);
+              }
+            });
+          }
+        }))());
+        const myStream = ((async function* () {
+          await file_type;
+          await file_name;
+          const chunkCount = await chunk_count;
+          const chunkSize = await chunk_size;
+          const queue = [];
+          const receiver = (async ({ data }) => {
+            queue.push(await (unwrapIntoArrayBuffer(data)));
+          });
+          dc.addEventListener("message", receiver);
+          console.log("receiver listener added");
+          const db = await ((async () => ({
+            async then(res, rej) {
+              if ((await (window.indexedDB.databases())).some(({ name }) => (name === "cachedb"))) {
+                await ({
+                  then(res, rej) {
+                    const eventtarget = window.indexedDB.deleteDatabase("cachedb");
+                    eventtarget.addEventListener("error", (e) => rej(e));
+                    eventtarget.addEventListener("success", () => res());
+                  }
+                });
+              }
+              const eventtarget = window.indexedDB.open("cachedb", 1);
+              eventtarget.addEventListener("error", (e) => rej(e));
+              eventtarget.addEventListener("upgradeneeded", (e) => {
+                const objectStore = e.target.result.createObjectStore("cache", { keyPath: "chunkid", autoIncrement: false });
+                objectStore.createIndex("chunkid", "chunkid", { unique: true });
+              });
+              eventtarget.addEventListener("success", (e) => res(e.target.result));
+            }
+          }))());
+          console.log("db opened");
+
+          dc.send("ready to receive");
+          console.log("asked for chunks");
+          msgshow.innerText = `starting to receive ${chunkCount} chunks (1 chunk = ${chunkSize} bytes)`;
+
+          const nextappendindex = new IntegerString;
+          const readAllOrderedFromDatabase = (async function* () {
+            while (nextappendindex.getString() !== chunkCount && await ({
+              then(res, rej) {
+                const eventtarget = db.transaction("cache", "readonly").objectStore("cache").count(nextappendindex.getString());
+                eventtarget.addEventListener("error", (e) => rej(e));
+                eventtarget.addEventListener("success", ({ target: { result } }) => res(result > 0));
+              }
+            })) {
+              const chunkdata = await ({
+                then(res, rej) {
+                  const eventtarget = db.transaction("cache", "readonly").objectStore("cache").get(nextappendindex.getString());
+                  eventtarget.addEventListener("error", (e) => rej(e));
+                  eventtarget.addEventListener("success", (e) => res(e.target.result.chunkdata));
+                }
+              });
+              db.transaction("cache", "readwrite").objectStore("cache").delete(nextappendindex.getString());
+
+              nextappendindex.increase();
+              yield chunkdata;
+            }
+          });
+          const receivedcount = new IntegerString;
+          for (; ;) {
+            if (queue.length === 0) {
+              await ({
+                then(res, rej) {
+                  window.requestAnimationFrame(() => res());
+                }
+              });
+              continue;
+            }
+            const data = queue.shift();
+            const zeroindex = (new Uint8Array(data)).findIndex((v) => (v === 0));
+            if (zeroindex === -1) {
+              console.log("Invalid message format");
+              continue;
+            }
+            const chunkindex = dec.decode(data.slice(0, zeroindex));
+            if (["file_name", "file_type", "chunk_count"].includes(chunkindex)) {
+              continue;
+            }
+            if (((new IntegerString(chunkindex)).getString()) !== chunkindex) {
+              console.log("Invalid chunk index", chunkindex);
+              continue;
+            }
+            const chunkdata = data.slice(zeroindex + 1);
+            receivedcount.increase();
+            msgshow.innerText = `received ${receivedcount.getString()}/${chunkCount} merged ${nextappendindex.getString()} (1 chunk = ${chunkSize} bytes)`;
+
+            fallback_into_db: {
+              if (chunkindex === nextappendindex.getString()) {
+                nextappendindex.increase();
+                yield chunkdata;
+                yield* readAllOrderedFromDatabase();
+                break fallback_into_db;
+              }
+              yield* readAllOrderedFromDatabase();
+              if (chunkindex === nextappendindex.getString()) {
+                nextappendindex.increase();
+                yield chunkdata;
+                yield* readAllOrderedFromDatabase();
+                break fallback_into_db;
+              }
+              await ({
+                then(res, rej) {
+                  const eventtarget = db.transaction("cache", "readwrite").objectStore("cache").add({ chunkid: chunkindex, chunkdata });
+                  eventtarget.addEventListener("error", (e) => rej(e));
+                  eventtarget.addEventListener("success", () => res());
+                }
+              });
+            }
+
+            msgshow.innerText = `received ${receivedcount.getString()}/${chunkCount} merged ${nextappendindex.getString()} (1 chunk = ${chunkSize} bytes)`;
+
+            if (nextappendindex.getString() === chunkCount) {
+              console.log("all chunks received", nextappendindex.getString());
+              msgshow.innerText = `all chunks received ${nextappendindex.getString()}`;
+              break;
+            }
+          }
+          dc.removeEventListener("message", receiver);
+          console.log("stream end");
+          db.close();
+          window.indexedDB.deleteDatabase("cachedb");
+        })());
+
+        using_offloadapi: {
+          if (disableOffloadAPI) {
+            break using_offloadapi;
+          }
+          try {
+            const resp = await fetch("./.offloadapi-init", {
+              method: "POST",
+              body: JSON.stringify({
+                file_name: (await file_name),
+                file_type: (await file_type),
+              }),
+              headers: {
+                "Content-Type": "application/json"
+              }
+            });
+            const result = await (resp.json());
+            if (result.status === "ok") {
+              console.log("using local offloadapi as stream reader");
+            } else {
+              break using_offloadapi;
+            }
+          } catch (e) {
+            break using_offloadapi;
+          }
+          const offloadmsg = receiverarea.appendChild(document.createElement("p"));
+          offloadmsg.innerText = "using local API as stream reader";
+          let notflushed = false;
+          const resetFlush = (() => {
+            window.setTimeout(() => {
+              notflushed = true;
+            }, 500);
+          });
+          performance.mark("receive frame start");
+          let interrupted = false;
+          window.requestAnimationFrame(function marker() {
+            if (interrupted) {
+              performance.clearMarks("receive frame start");
+              return;
+            }
+            performance.mark("receive frame start");
+            window.requestAnimationFrame(marker);
+          });
+          const parts = [];
+          const saveChunks = (async () => {
+            const resp = await fetch("./.offloadapi", {
+              method: "POST",
+              body: (new Blob(parts, { type: "application/octet-stream" }))
+            });
+            parts.length = 0;
+            const { result } = await (resp.json());
+            if (result !== "ok") {
+              throw new Error("offloadapi failed to append chunk");
+            }
+          });
+          resetFlush();
+          for await (const chunk of myStream) {
+            parts.push(chunk);
+            if (notflushed) {
+              await saveChunks();
+              notflushed = false;
+              resetFlush();
+            }
+            if (performance.measure("receive dur", "receive frame start").duration > 400) {
+              await ({
+                then(res, rej) {
+                  window.requestAnimationFrame(() => res());
+                }
+              });
+            }
+          }
+          interrupted = true;
+          offloadmsg.innerText = "Flushing";
+          if (parts.length > 0) {
+            await saveChunks();
+          }
+          performance.clearMeasures("receive dur");
+          const { result, file_path } = await ((await fetch("./.offloadapi-close")).json());
+          offloadmsg.innerText = `"${file_path}" has been received. status: ${result}`;
+          return;
+        }
+        console.log("using Response as stream reader");
+        const resp = new Response(new ReadableStream({
+          type: "bytes",
+          async pull(controller) {
+            const stayUncaught = ((async () => {
+              const result = await myStream.next();
+              if (result.done) {
+                controller.close();
+                return;
+              }
+              controller.enqueue(new DataView(result.value));
+            })());
+            stayUncaught.catch((err) => {
+              console.error("caught uncaught receivestream err");
+              console.log(err);
+              msgshow.innerText = err;
+            });
+            await stayUncaught;
+          }
+        }), {
+          headers: {
+            "Content-Type": (await file_type)
+          }
+        });
+        const file = await (resp.blob());
+        receiverarea.appendChild(Object.assign(document.createElement("a"), {
+          href: URL.createObjectURL(file),
+          download: ((await file_name) ?? "receive"),
+          innerText: "Download"
+        })).click();
+      });
+      joinbtn.addEventListener("click", async () => {
+        const stayUncaught = clickbtn();
+        stayUncaught.catch((err) => {
+          console.log("caught uncaught err");
+          console.log(err);
+          msgshow.innerText = err;
+        });
+        return stayUncaught;
+      });
+    })();
+
+  </script>
+</body>
+
+</html>
