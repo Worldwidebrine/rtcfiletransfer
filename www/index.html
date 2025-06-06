@@ -28,8 +28,9 @@
     }
 
     video {
-      margin: auto;
       display: block;
+      margin: auto;
+      max-width: 80vw;
     }
   </style>
 </head>
@@ -828,7 +829,7 @@
               continue;
             }
             if (((new IntegerString(chunkindex)).getString()) !== chunkindex) {
-              console.log("Invalid chunk index", chunkindex);
+              console.debug("Invalid chunk index", chunkindex);
               continue;
             }
             const chunkdata = data.slice(zeroindex + 1);
@@ -953,6 +954,39 @@
           return;
         }
         console.log("using Response as stream reader");
+        msgshow.innerText = "Testing file creation";
+        {
+          const chunkSize = await chunk_size;
+          const chunkCount = await chunk_count;
+          const testingStream = ((function* () {
+            for (let chunkIndex = new IntegerString; chunkIndex.getString() !== chunkCount; chunkIndex.increase()) {
+              msgshow.innerText = `testing: appended chunks ${chunkIndex.getString()}/${chunkCount} (1 chunk = ${chunkSize} bytes)`;
+              const bytes = new Uint8Array(new ArrayBuffer(chunkSize));
+              for (let i = 0; i < chunkSize; i++) {
+                bytes[i] = Math.trunc(Math.random() * 128);
+              }
+              yield (bytes.buffer);
+            }
+          })());
+          const resp = new Response(new ReadableStream({
+            type: "bytes",
+            pull(controller) {
+              const result = testingStream.next();
+              if (result.done) {
+                controller.close();
+                return;
+              }
+              controller.enqueue(new DataView(result.value));
+            }
+          }), {
+            headers: {
+              "Content-Type": (await file_type)
+            }
+          });
+          const blob = await (resp.blob());
+          console.debug("Response test passed", blob.size);
+          msgshow.innerText = "File creation test passed. Receiving...";
+        }
         const resp = new Response(new ReadableStream({
           type: "bytes",
           async pull(controller) {
