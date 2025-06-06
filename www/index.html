@@ -983,9 +983,15 @@
               "Content-Type": (await file_type)
             }
           });
-          const blob = await (resp.blob());
+          let blob = await (resp.blob());
           console.debug("Response test passed", blob.size);
+          blob = null;
           msgshow.innerText = "File creation test passed. Receiving...";
+          await ({
+            then(res, rej) {
+              window.setTimeout(() => res(), 1000);
+            }
+          });
         }
         const resp = new Response(new ReadableStream({
           type: "bytes",
