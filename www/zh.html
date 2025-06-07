@@ -509,7 +509,7 @@
       await peer.setLocalDescription(await peer.createOffer());
       console.log(peer.localDescription);
       {
-        msgshow.innerText = "正在获取STUN候选";
+        msgshow.innerText = "正在获取STUN候选参数";
         const candidates = await promisedCandidates;
         msgshow.innerText = String();
         client = { peer };
