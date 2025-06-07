@@ -567,7 +567,7 @@
         }))());
         await (peer.setRemoteDescription(result.answer));
         await (peer.addIceCandidate(result.candidates));
-        msgshow.innerText = "回函已解析 正在等待DataChannel连接建立";
+        msgshow.innerText = "回函已解析 正在等待套接字连接建立";
         const { receiverReady } = await dcToBeReady;
 
         client.receiverReady = receiverReady;
@@ -655,7 +655,7 @@
         await (peer.setLocalDescription(await peer.createAnswer()));
         console.log(peer.localDescription);
         {
-          msgshow.innerText = "正在获取STUN候选";
+          msgshow.innerText = "正在获取STUN候选参数";
           const candidates = await promisedCandidates;
           msgshow.innerText = String();
           const answer = JSON.stringify({
