@@ -2,7 +2,7 @@
 <html lang="zh">
 
 <head>
-  <meta charset="gb18030" />
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>filesending</title>
   <style>
@@ -37,10 +37,10 @@
 
 <body>
   <div class="sender-area">
-    ·¢ËÍ
+    å‘é€
   </div>
   <div class="receiver-area">
-    ½ÓÊÕ
+    æ¥æ”¶
   </div>
   <video src="./screenkeep.mp4" loop controls autoplay></video>
   <script type="module">// @ts-check
@@ -269,7 +269,7 @@
         classList: ["connect-area"]
       }));
       const invite = inviteui.appendChild(Object.assign(document.createElement("label"), {
-        innerText: "ÑûÇëº¯"
+        innerText: "é‚€è¯·å‡½"
       })).appendChild(Object.assign(document.createElement("input"), {
         readOnly: true
       }));
@@ -281,28 +281,28 @@
       });
       invite.disabled = true;
       const client_acception_reply = inviteui.appendChild(Object.assign(document.createElement("label"), {
-        innerText: "»Øº¯"
+        innerText: "å›å‡½"
       })).appendChild(document.createElement("input"));
       client_acception_reply.disabled = true;
       const invbtn = Object.assign(inviteui.appendChild(document.createElement("button")), {
-        innerText: "Á¬½Ó"
+        innerText: "è¿æ¥"
       });
       invbtn.disabled = true;
       const fileInput = Object.assign(senderarea.appendChild(document.createElement("input")), {
         type: "file"
       });
       const sendbtn = Object.assign(senderarea.appendChild(document.createElement("button")), {
-        innerText: "·¢ËÍ"
+        innerText: "å‘é€"
       });
       const msgshow = senderarea.appendChild(document.createElement("p"));
       sendbtn.addEventListener("click", async function sendHandler() {
         const stayUncaught = ((async () => {
           if (!(client?.dc)) {
-            msgshow.innerText = "Î´½¨Á¢Á¬½Ó£¡";
+            msgshow.innerText = "æœªå»ºç«‹è¿æ¥ï¼";
             return;
           }
           if (!(fileInput.files?.[0])) {
-            msgshow.innerText = "Î´Ñ¡ÔñÎÄ¼ş£¡";
+            msgshow.innerText = "æœªé€‰æ‹©æ–‡ä»¶ï¼";
             return;
           }
           const { file_name, file_type, file } = ((() => {
@@ -314,8 +314,8 @@
             });
           })());
           sendbtn.disabled = true;
-          sendbtn.innerText = `ÕıÔÚ·¢ËÍ... "${file_name}"`;
-          msgshow.innerText = "ÕıÔÚ·¢ËÍÔªÊı¾İ";
+          sendbtn.innerText = `æ­£åœ¨å‘é€... "${file_name}"`;
+          msgshow.innerText = "æ­£åœ¨å‘é€å…ƒæ•°æ®";
           fileInput.value = "";
           const metadata = [
             await ((new Blob(["file_name", uint8zero, file_name])).arrayBuffer()),
@@ -325,7 +325,7 @@
             client.dc.send(chunk);
           }
 
-          msgshow.innerText = `ÕıÔÚ·¢ËÍÔªÊı¾İ... ·ÖÆ¬¼ÆÊıÖĞ (${chunkSize} ×Ö½Ú = 1 ·ÖÆ¬)`;
+          msgshow.innerText = `æ­£åœ¨å‘é€å…ƒæ•°æ®... åˆ†ç‰‡è®¡æ•°ä¸­ (${chunkSize} å­—èŠ‚ = 1 åˆ†ç‰‡)`;
           const chunk_count = new IntegerString;
           {
             let pendingSize = 0;
@@ -340,7 +340,7 @@
               while (nextSize >= chunkSize) {
                 chunk_count.increase();
                 nextSize -= chunkSize;
-                msgshow.innerText = `ÕıÔÚ·¢ËÍÔªÊı¾İ... ·ÖÆ¬¼ÆÊıÖĞ ${chunk_count.getString()} (${chunkSize} ×Ö½Ú = 1 ·ÖÆ¬)`;
+                msgshow.innerText = `æ­£åœ¨å‘é€å…ƒæ•°æ®... åˆ†ç‰‡è®¡æ•°ä¸­ ${chunk_count.getString()} (${chunkSize} å­—èŠ‚ = 1 åˆ†ç‰‡)`;
               }
               pendingSize = nextSize;
             }
@@ -354,7 +354,7 @@
               pendingSize -= chunkSize;
             }
           }
-          msgshow.innerText = `ÕıÔÚ·¢ËÍÔªÊı¾İ... ·ÖÆ¬¹² ${chunk_count.getString()} ¸ö (${chunkSize} bytes = 1 chunk)`;
+          msgshow.innerText = `æ­£åœ¨å‘é€å…ƒæ•°æ®... åˆ†ç‰‡å…± ${chunk_count.getString()} ä¸ª (${chunkSize} bytes = 1 chunk)`;
           console.log("chunk_count", chunk_count.getString());
           try {
             const chunk_head_with_max_index_blob = new Blob([chunk_count.getString(), uint8zero]);
@@ -372,7 +372,7 @@
             console.log("Test sending largest message succeeded");
           } catch (e) {
             console.error("Test sending largest message failed", e);
-            throw new Error("ÎÄ¼ş¹ı´ó! ³¢ÊÔ·¢ËÍËùĞè×î´ó·ÖÆ¬Êı¾İ°üÊ±´ïµ½ä¯ÀÀÆ÷ËÙÂÊÏŞÖÆ");
+            throw new Error("æ–‡ä»¶è¿‡å¤§! å°è¯•å‘é€æ‰€éœ€æœ€å¤§åˆ†ç‰‡æ•°æ®åŒ…æ—¶è¾¾åˆ°æµè§ˆå™¨é€Ÿç‡é™åˆ¶");
           }
           {
             let receiverNotReady = true;
@@ -401,7 +401,7 @@
           }
           metadata.length = 0;
 
-          msgshow.innerText = `¿ªÊ¼·¢ËÍ ${chunk_count.getString()} ¸ö·ÖÆ¬ (${chunkSize} bytes = 1 chunk)`;
+          msgshow.innerText = `å¼€å§‹å‘é€ ${chunk_count.getString()} ä¸ªåˆ†ç‰‡ (${chunkSize} bytes = 1 chunk)`;
           const promises = ((() => {
             if (chunksBeforeJoinPromises > 0) {
               return [];
@@ -442,29 +442,29 @@
             promises.push(sendChunk(chunk, chunkindex.getString()).then(() => {
               sentCount.increase();
             }));
-            msgshow.innerText = `ÒÑ·¢ËÍ ${sentCount.getString()}/${chunk_count.getString()} ÕıÔÚ·¢ËÍ·ÖÆ¬(id=${chunkindex.getString()})`;
+            msgshow.innerText = `å·²å‘é€ ${sentCount.getString()}/${chunk_count.getString()} æ­£åœ¨å‘é€åˆ†ç‰‡(id=${chunkindex.getString()})`;
             chunkindex.increase();
 
             if (chunk.byteLength !== chunkSize) {
               console.debug("Weird chunk size sending", chunk.byteLength);
             }
             if (promises.length >= chunksBeforeJoinPromises) {
-              msgshow.innerText = `ÒÑ·¢ËÍ ${sentCount.getString()}/${chunk_count.getString()} ·¢ËÍÏÂ¸ö·ÖÆ¬(id=${chunkindex.getString()})Ö®Ç° µÈ´ıÇ°${promises.length}¸ö·ÖÆ¬ÖĞ`;
+              msgshow.innerText = `å·²å‘é€ ${sentCount.getString()}/${chunk_count.getString()} å‘é€ä¸‹ä¸ªåˆ†ç‰‡(id=${chunkindex.getString()})ä¹‹å‰ ç­‰å¾…å‰${promises.length}ä¸ªåˆ†ç‰‡ä¸­`;
               for (const p of promises) {
                 await p;
               }
               promises.length = 0;
-              msgshow.innerText = `ÒÑ·¢ËÍ ${sentCount.getString()}/${chunk_count.getString()}`;
+              msgshow.innerText = `å·²å‘é€ ${sentCount.getString()}/${chunk_count.getString()}`;
             }
           }
-          msgshow.innerText = `ÒÑ·¢ËÍ ${sentCount.getString()}/${chunk_count.getString()} ÕıÔÚµÈ´ı×îºó${promises.length}¸ö·ÖÆ¬`;
+          msgshow.innerText = `å·²å‘é€ ${sentCount.getString()}/${chunk_count.getString()} æ­£åœ¨ç­‰å¾…æœ€å${promises.length}ä¸ªåˆ†ç‰‡`;
           for (const p of promises) {
             await p;
           }
           if (sentCount.getString() !== chunk_count.getString()) {
             if (chunksBeforeJoinPromises > 0) {
               console.error("sent count mismatch", sentCount.getString(), chunk_count.getString());
-              msgshow.innerText = `ÇëµÈ´ı: ¼´Ê¹È«²¿·ÖÆ¬·¢ËÍ¾ùÒÑµÈ´ı ÒÑ·¢ËÍ·ÖÆ¬ÊıÈÔÎ´´ïµ½Ô¤ÆÚ ${sentCount.getString()}/${chunk_count.getString()}`;
+              msgshow.innerText = `è¯·ç­‰å¾…: å³ä½¿å…¨éƒ¨åˆ†ç‰‡å‘é€å‡å·²ç­‰å¾… å·²å‘é€åˆ†ç‰‡æ•°ä»æœªè¾¾åˆ°é¢„æœŸ ${sentCount.getString()}/${chunk_count.getString()}`;
             } else {
               console.debug("sent count mismatch", sentCount.getString(), chunk_count.getString());
             }
@@ -476,7 +476,7 @@
               });
             } while (sentCount.getString() !== chunk_count.getString());
           }
-          msgshow.innerText = `È«²¿Íê³É£¡ÒÑ·¢ËÍ${chunk_count.getString()}¸ö·ÖÆ¬`;
+          msgshow.innerText = `å…¨éƒ¨å®Œæˆï¼å·²å‘é€${chunk_count.getString()}ä¸ªåˆ†ç‰‡`;
           console.log("sent", chunkindex.getString(), sentCount.getString(), "total", chunk_count.getString());
         })());
         stayUncaught.catch((err) => {
@@ -509,7 +509,7 @@
       await peer.setLocalDescription(await peer.createOffer());
       console.log(peer.localDescription);
       {
-        msgshow.innerText = "ÕıÔÚ»ñÈ¡STUNºòÑ¡";
+        msgshow.innerText = "æ­£åœ¨è·å–STUNå€™é€‰";
         const candidates = await promisedCandidates;
         msgshow.innerText = String();
         client = { peer };
@@ -537,9 +537,9 @@
 
       const connectevent = (async () => {
         if (String(client_acception_reply.value).length < 5 || String(invite.value).length < 5) {
-          throw new Error("»Øº¯ÊÇ¿ÕµÄ");
+          throw new Error("å›å‡½æ˜¯ç©ºçš„");
         }
-        msgshow.innerText = "½âÎö»Øº¯ÖĞ";
+        msgshow.innerText = "è§£æå›å‡½ä¸­";
         const unzip = new Response((await fetch(client_acception_reply.value)).body.pipeThrough(new DecompressionStream("gzip")));
         const result = await unzip.json();
         console.log(result);
@@ -567,13 +567,13 @@
         }))());
         await (peer.setRemoteDescription(result.answer));
         await (peer.addIceCandidate(result.candidates));
-        msgshow.innerText = "»Øº¯ÒÑ½âÎö ÕıÔÚµÈ´ıDataChannelÁ¬½Ó½¨Á¢";
+        msgshow.innerText = "å›å‡½å·²è§£æ æ­£åœ¨ç­‰å¾…DataChannelè¿æ¥å»ºç«‹";
         const { receiverReady } = await dcToBeReady;
 
         client.receiverReady = receiverReady;
         client.dc = dc;
 
-        msgshow.innerText = "ÒÑÁ¬½Ó";
+        msgshow.innerText = "å·²è¿æ¥";
         console.log("client join", client);
 
         invite.value = client_acception_reply.value = String();
@@ -597,10 +597,10 @@
         classList: ["connect-area"]
       }));
       const invite = inviteui.appendChild(Object.assign(document.createElement("label"), {
-        innerText: "ÑûÇëº¯"
+        innerText: "é‚€è¯·å‡½"
       })).appendChild(document.createElement("input"));
       const acc = inviteui.appendChild(Object.assign(document.createElement("label"), {
-        innerText: "»Øº¯"
+        innerText: "å›å‡½"
       })).appendChild(Object.assign(document.createElement("input"), {
         readOnly: true
       }));
@@ -612,7 +612,7 @@
         acc.select();
       });
       const joinbtn = Object.assign(inviteui.appendChild(document.createElement("button")), {
-        innerText: "³¢ÊÔÁ¬½Ó"
+        innerText: "å°è¯•è¿æ¥"
       });
       const msgshow = receiverarea.appendChild(document.createElement("p"));
 
@@ -629,7 +629,7 @@
         joinbtn.disabled = true;
         if (String(invite.value).length < 5) {
           joinbtn.disabled = false;
-          throw new Error("ÇëÕ³ÌùÑûÇëº¯");
+          throw new Error("è¯·ç²˜è´´é‚€è¯·å‡½");
         }
         const unzip = new Response((await fetch(invite.value)).body.pipeThrough(new DecompressionStream("gzip")));
         const result = await (unzip.json());
@@ -655,7 +655,7 @@
         await (peer.setLocalDescription(await peer.createAnswer()));
         console.log(peer.localDescription);
         {
-          msgshow.innerText = "ÕıÔÚ»ñÈ¡STUNºòÑ¡";
+          msgshow.innerText = "æ­£åœ¨è·å–STUNå€™é€‰";
           const candidates = await promisedCandidates;
           msgshow.innerText = String();
           const answer = JSON.stringify({
@@ -680,7 +680,7 @@
         acc.disabled = false;
 
         console.log("trying to join");
-        msgshow.innerText = "ÕıÔÚµÈ´ıÌ×½Ó×ÖÁ¬½Ó½¨Á¢";
+        msgshow.innerText = "æ­£åœ¨ç­‰å¾…å¥—æ¥å­—è¿æ¥å»ºç«‹";
         const dc = await promisedDC;
         console.log("dc created");
 
@@ -689,7 +689,7 @@
         invite.value = String();
         inviteui.style.display = "none";
         joinbtn.disabled = true;
-        msgshow.innerText = "ÒÑÁ¬½Ó";
+        msgshow.innerText = "å·²è¿æ¥";
 
         const dec = new TextDecoder;
         const unwrapIntoArrayBuffer = (async (data) => {
@@ -784,7 +784,7 @@
 
           dc.send("ready to receive");
           console.log("asked for chunks");
-          msgshow.innerText = `¼´½«½ÓÊÕ ${chunkCount} ¸ö·ÖÆ¬ (1 ·ÖÆ¬ = ${chunkSize} ×Ö½Ú)`;
+          msgshow.innerText = `å³å°†æ¥æ”¶ ${chunkCount} ä¸ªåˆ†ç‰‡ (1 åˆ†ç‰‡ = ${chunkSize} å­—èŠ‚)`;
 
           const nextappendindex = new IntegerString;
           const readAllOrderedFromDatabase = (async function* () {
@@ -834,7 +834,7 @@
             }
             const chunkdata = data.slice(zeroindex + 1);
             receivedcount.increase();
-            msgshow.innerText = `ÒÑ½ÓÊÕ ${receivedcount.getString()}/${chunkCount} ÒÑºÏ²¢ ${nextappendindex.getString()} (1 ·ÖÆ¬ = ${chunkSize} ×Ö½Ú)`;
+            msgshow.innerText = `å·²æ¥æ”¶ ${receivedcount.getString()}/${chunkCount} å·²åˆå¹¶ ${nextappendindex.getString()} (1 åˆ†ç‰‡ = ${chunkSize} å­—èŠ‚)`;
 
             fallback_into_db: {
               if (chunkindex === nextappendindex.getString()) {
@@ -859,11 +859,11 @@
               });
             }
 
-            msgshow.innerText = `ÒÑ½ÓÊÕ ${receivedcount.getString()}/${chunkCount} ÒÑºÏ²¢ ${nextappendindex.getString()} (1 ·ÖÆ¬ = ${chunkSize} ×Ö½Ú)`;
+            msgshow.innerText = `å·²æ¥æ”¶ ${receivedcount.getString()}/${chunkCount} å·²åˆå¹¶ ${nextappendindex.getString()} (1 åˆ†ç‰‡ = ${chunkSize} å­—èŠ‚)`;
 
             if (nextappendindex.getString() === chunkCount) {
               console.log("all chunks received", nextappendindex.getString());
-              msgshow.innerText = `È«²¿·ÖÆ¬ÒÑ½ÓÊÕ ${nextappendindex.getString()}`;
+              msgshow.innerText = `å…¨éƒ¨åˆ†ç‰‡å·²æ¥æ”¶ ${nextappendindex.getString()}`;
               break;
             }
           }
@@ -898,7 +898,7 @@
             break using_offloadapi;
           }
           const offloadmsg = receiverarea.appendChild(document.createElement("p"));
-          offloadmsg.innerText = "¼´½«Ê¹ÓÃ¿Í»§¶Ë×÷ÎªÁ÷½ÓÊÕÆ÷";
+          offloadmsg.innerText = "å³å°†ä½¿ç”¨å®¢æˆ·ç«¯ä½œä¸ºæµæ¥æ”¶å™¨";
           let notflushed = false;
           const resetFlush = (() => {
             window.setTimeout(() => {
@@ -924,7 +924,7 @@
             parts.length = 0;
             const { result } = await (resp.json());
             if (result !== "ok") {
-              throw new Error("¿Í»§¶ËĞ´Èë·ÖÆ¬Ê§°Ü");
+              throw new Error("å®¢æˆ·ç«¯å†™å…¥åˆ†ç‰‡å¤±è´¥");
             }
           });
           resetFlush();
@@ -944,20 +944,20 @@
             }
           }
           interrupted = true;
-          offloadmsg.innerText = "ÕıÔÚ³åË¢»º³å";
+          offloadmsg.innerText = "æ­£åœ¨å†²åˆ·ç¼“å†²";
           if (parts.length > 0) {
             await saveChunks();
           }
           performance.clearMeasures("receive dur");
           const { result, file_path } = await ((await fetch("./.offloadapi-close")).json());
-          offloadmsg.innerText = `ÒÑ½ÓÊÕ "${file_path}" ×´Ì¬: ${result}`;
+          offloadmsg.innerText = `å·²æ¥æ”¶ "${file_path}" çŠ¶æ€: ${result}`;
           return;
         }
         console.log("using Response as stream reader");
         {
-          msgshow.innerText = `¼´½«²âÊÔÎÄ¼ş´´½¨: ÕıÔÚ½ÓÊÕÔªÊı¾İ...`;
+          msgshow.innerText = `å³å°†æµ‹è¯•æ–‡ä»¶åˆ›å»º: æ­£åœ¨æ¥æ”¶å…ƒæ•°æ®...`;
           const chunkCount = await chunk_count;
-          msgshow.innerText = `¼´½«²âÊÔÎÄ¼ş´´½¨: ·ÖÆ¬ÊıÁ¿ ${chunkCount}`;
+          msgshow.innerText = `å³å°†æµ‹è¯•æ–‡ä»¶åˆ›å»º: åˆ†ç‰‡æ•°é‡ ${chunkCount}`;
           const discard = (() => {
             return;
           });
@@ -966,7 +966,7 @@
             const chunkSize = await chunk_size;
             const testingStream = ((function* () {
               for (let chunkIndex = new IntegerString; chunkIndex.getString() !== chunkCount; chunkIndex.increase()) {
-                msgshow.innerText = `²âÊÔÖĞ: ÒÑ×·¼Ó·ÖÆ¬ ${chunkIndex.getString()}/${chunkCount} (1 chunk = ${chunkSize} bytes)`;
+                msgshow.innerText = `æµ‹è¯•ä¸­: å·²è¿½åŠ åˆ†ç‰‡ ${chunkIndex.getString()}/${chunkCount} (1 chunk = ${chunkSize} bytes)`;
                 const bytes = new Uint8Array(new ArrayBuffer(chunkSize));
                 for (let i = 0; i < chunkSize; i++) {
                   bytes[i] = Math.trunc(Math.random() * 128);
@@ -998,10 +998,10 @@
             console.debug("Response stress test passed", blob.size);
           } catch (e) {
             console.error("Response stress test failed", e);
-            throw new Error("ÎÄ¼ş¹ı´ó! ä¯ÀÀÆ÷ÎŞ·¨´´½¨ÁÙÊ±ÎÄ¼ş ÇëÊ¹ÓÃ¿Í»§¶ËÔÙÊÔÒ»´Î");
+            throw new Error("æ–‡ä»¶è¿‡å¤§! æµè§ˆå™¨æ— æ³•åˆ›å»ºä¸´æ—¶æ–‡ä»¶ è¯·ä½¿ç”¨å®¢æˆ·ç«¯å†è¯•ä¸€æ¬¡");
           }
           dc.removeEventListener("message", discard);
-          msgshow.innerText = "ÎÄ¼ş´´½¨²âÊÔÒÑÍ¨¹ı ¼´½«¿ªÊ¼½ÓÊÕ...";
+          msgshow.innerText = "æ–‡ä»¶åˆ›å»ºæµ‹è¯•å·²é€šè¿‡ å³å°†å¼€å§‹æ¥æ”¶...";
           await ({ // give browser some time to free blob
             then(res, rej) {
               window.setTimeout(() => res(), 500);
@@ -1035,7 +1035,7 @@
         receiverarea.appendChild(Object.assign(document.createElement("a"), {
           href: URL.createObjectURL(file),
           download: ((await file_name) ?? "receive"),
-          innerText: "ÏÂÔØ"
+          innerText: "ä¸‹è½½"
         })).click();
       });
       joinbtn.addEventListener("click", async function listener() {
