@@ -295,7 +295,7 @@
         innerText: "Send"
       });
       const msgshow = senderarea.appendChild(document.createElement("p"));
-      sendbtn.addEventListener("click", async () => {
+      sendbtn.addEventListener("click", async function sendHandler() {
         const stayUncaught = ((async () => {
           if (!(client?.dc)) {
             msgshow.innerText = "Not connected!";
@@ -358,8 +358,9 @@
           console.log("chunk_count", chunk_count.getString());
           try {
             const chunk_head_with_max_index_blob = new Blob([chunk_count.getString(), uint8zero]);
-            const chunk_count_metadata = new Blob(["chunk_count", uint8zero, chunk_head_with_max_index_blob]);
-            const size_over_chunk_head = chunk_count_metadata.size - chunk_head_with_max_index_blob.size;
+            const metadata_head = new Blob(["chunk_count", uint8zero]);
+            const chunk_count_metadata = new Blob([metadata_head, chunk_head_with_max_index_blob]);
+            const size_over_chunk_head = metadata_head.size;
             const fill_size = ((new IntegerString(chunkSize - size_over_chunk_head)).getString());
             const parts = [chunk_count_metadata];
             for (const filled = new IntegerString; filled.getString() !== fill_size; filled.increase()) {
@@ -481,9 +482,10 @@
         stayUncaught.catch((err) => {
           console.log("caught uncaught err");
           console.log(err);
-          msgshow.innerText = "Error: " + err;
+          msgshow.innerText = err;
         });
-        return stayUncaught;
+        await stayUncaught;
+        sendbtn.removeEventListener("click", sendHandler);
       });
       const peer = new RTCPeerConnection({ iceServers });
       const dc = peer.createDataChannel("websocket", {
@@ -566,7 +568,7 @@
         }))());
         await (peer.setRemoteDescription(result.answer));
         await (peer.addIceCandidate(result.candidates));
-        msgshow.innerText = "reply parsed. waiting for socket";
+        msgshow.innerText = "Reply parsed. Waiting for socket...";
         const { receiverReady } = await dcToBeReady;
 
         client.receiverReady = receiverReady;
@@ -580,13 +582,13 @@
       });
       invbtn.addEventListener("click", async function listener() {
         const stayUncaught = connectevent();
-        invbtn.removeEventListener("click", listener);
         stayUncaught.catch((err) => {
           console.log("caught uncaught err");
           console.log(err);
           msgshow.innerText = err;
         });
-        return stayUncaught;
+        await stayUncaught;
+        invbtn.removeEventListener("click", listener);
       });
     })();
 
@@ -628,7 +630,7 @@
         joinbtn.disabled = true;
         if (String(invite.value).length < 5) {
           joinbtn.disabled = false;
-          return;
+          throw new Error("Please paste invite");
         }
         const unzip = new Response((await fetch(invite.value)).body.pipeThrough(new DecompressionStream("gzip")));
         const result = await (unzip.json());
@@ -687,6 +689,7 @@
         acc.value = String();
         invite.value = String();
         inviteui.style.display = "none";
+        joinbtn.disabled = true;
         msgshow.innerText = "Connected";
 
         const dec = new TextDecoder;
@@ -750,8 +753,6 @@
           }
         }))());
         const myStream = ((async function* () {
-          await file_type;
-          await file_name;
           const chunkCount = await chunk_count;
           const chunkSize = await chunk_size;
           const queue = [];
@@ -954,42 +955,53 @@
           return;
         }
         console.log("using Response as stream reader");
-        msgshow.innerText = "Testing file creation";
         {
-          const chunkSize = await chunk_size;
-          const chunkCount = await chunk_count;
-          const testingStream = ((function* () {
-            for (let chunkIndex = new IntegerString; chunkIndex.getString() !== chunkCount; chunkIndex.increase()) {
-              msgshow.innerText = `testing: appended chunks ${chunkIndex.getString()}/${chunkCount} (1 chunk = ${chunkSize} bytes)`;
-              const bytes = new Uint8Array(new ArrayBuffer(chunkSize));
-              for (let i = 0; i < chunkSize; i++) {
-                bytes[i] = Math.trunc(Math.random() * 128);
-              }
-              yield (bytes.buffer);
-            }
-          })());
-          const resp = new Response(new ReadableStream({
-            type: "bytes",
-            pull(controller) {
-              const result = testingStream.next();
-              if (result.done) {
-                controller.close();
-                return;
-              }
-              controller.enqueue(new DataView(result.value));
-            }
-          }), {
-            headers: {
-              "Content-Type": (await file_type)
-            }
+          msgshow.innerText = "Testing file creation";
+          const discard = (() => {
+            return;
           });
-          let blob = await (resp.blob());
-          console.debug("Response test passed", blob.size);
-          blob = null;
+          dc.addEventListener("message", discard);
+          {
+            const chunkSize = await chunk_size;
+            const chunkCount = await chunk_count;
+            const testingStream = ((function* () {
+              for (let chunkIndex = new IntegerString; chunkIndex.getString() !== chunkCount; chunkIndex.increase()) {
+                msgshow.innerText = `testing: appended chunks ${chunkIndex.getString()}/${chunkCount} (1 chunk = ${chunkSize} bytes)`;
+                const bytes = new Uint8Array(new ArrayBuffer(chunkSize));
+                for (let i = 0; i < chunkSize; i++) {
+                  bytes[i] = Math.trunc(Math.random() * 128);
+                }
+                yield (bytes.buffer);
+              }
+            })());
+            const resp = new Response(new ReadableStream({
+              type: "bytes",
+              pull(controller) {
+                const result = testingStream.next();
+                if (result.done) {
+                  controller.close();
+                  return;
+                }
+                controller.enqueue(new DataView(result.value));
+              }
+            }), {
+              headers: {
+                "Content-Type": (await file_type)
+              }
+            });
+            const blob = await (resp.blob());
+            await ({ // keep it for a while
+              then(res, rej) {
+                window.setTimeout(() => res(), 500);
+              }
+            });
+            console.debug("Response stress test passed", blob.size);
+          }
+          dc.removeEventListener("message", discard);
           msgshow.innerText = "File creation test passed. Receiving...";
-          await ({
+          await ({ // give browser some time to free blob
             then(res, rej) {
-              window.setTimeout(() => res(), 1000);
+              window.setTimeout(() => res(), 500);
             }
           });
         }
@@ -1023,14 +1035,15 @@
           innerText: "Download"
         })).click();
       });
-      joinbtn.addEventListener("click", async () => {
+      joinbtn.addEventListener("click", async function listener() {
         const stayUncaught = clickbtn();
         stayUncaught.catch((err) => {
           console.log("caught uncaught err");
           console.log(err);
           msgshow.innerText = err;
         });
-        return stayUncaught;
+        await stayUncaught;
+        joinbtn.removeEventListener("click", listener);
       });
     })();
 
