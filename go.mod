@@ -1,3 +1,3 @@
-module embedserver
+module rtcfiletransferembedserver
 
 go 1.24.3
