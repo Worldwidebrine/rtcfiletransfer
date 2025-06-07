@@ -956,14 +956,15 @@
         }
         console.log("using Response as stream reader");
         {
-          msgshow.innerText = "Testing file creation";
+          msgshow.innerText = `Testing file creation: Waiting for metadata...`;
+          const chunkCount = await chunk_count;
+          msgshow.innerText = `Testing file creation: ${chunkCount} chunks`;
           const discard = (() => {
             return;
           });
           dc.addEventListener("message", discard);
           {
             const chunkSize = await chunk_size;
-            const chunkCount = await chunk_count;
             const testingStream = ((function* () {
               for (let chunkIndex = new IntegerString; chunkIndex.getString() !== chunkCount; chunkIndex.increase()) {
                 msgshow.innerText = `testing: appended chunks ${chunkIndex.getString()}/${chunkCount} (1 chunk = ${chunkSize} bytes)`;
