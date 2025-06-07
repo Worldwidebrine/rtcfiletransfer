@@ -963,7 +963,7 @@
             return;
           });
           dc.addEventListener("message", discard);
-          {
+          try {
             const chunkSize = await chunk_size;
             const testingStream = ((function* () {
               for (let chunkIndex = new IntegerString; chunkIndex.getString() !== chunkCount; chunkIndex.increase()) {
@@ -997,6 +997,9 @@
               }
             });
             console.debug("Response stress test passed", blob.size);
+          } catch (e) {
+            console.error("Response stress test failed", e);
+            throw new Error("File too large! Browser failed to create temp file");
           }
           dc.removeEventListener("message", discard);
           msgshow.innerText = "File creation test passed. Receiving...";
