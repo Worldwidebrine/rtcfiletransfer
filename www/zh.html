@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="gb18030" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>filesending</title>
   <style>
@@ -37,10 +37,10 @@
 
 <body>
   <div class="sender-area">
-    Send
+    发送
   </div>
   <div class="receiver-area">
-    Receive
+    接收
   </div>
   <video src="./screenkeep.mp4" loop controls autoplay></video>
   <script type="module">// @ts-check
@@ -269,7 +269,7 @@
         classList: ["connect-area"]
       }));
       const invite = inviteui.appendChild(Object.assign(document.createElement("label"), {
-        innerText: "Invite"
+        innerText: "邀请函"
       })).appendChild(Object.assign(document.createElement("input"), {
         readOnly: true
       }));
@@ -281,28 +281,28 @@
       });
       invite.disabled = true;
       const client_acception_reply = inviteui.appendChild(Object.assign(document.createElement("label"), {
-        innerText: "Reply"
+        innerText: "回函"
       })).appendChild(document.createElement("input"));
       client_acception_reply.disabled = true;
       const invbtn = Object.assign(inviteui.appendChild(document.createElement("button")), {
-        innerText: "Connect"
+        innerText: "连接"
       });
       invbtn.disabled = true;
       const fileInput = Object.assign(senderarea.appendChild(document.createElement("input")), {
         type: "file"
       });
       const sendbtn = Object.assign(senderarea.appendChild(document.createElement("button")), {
-        innerText: "Send"
+        innerText: "发送"
       });
       const msgshow = senderarea.appendChild(document.createElement("p"));
       sendbtn.addEventListener("click", async function sendHandler() {
         const stayUncaught = ((async () => {
           if (!(client?.dc)) {
-            msgshow.innerText = "Not connected!";
+            msgshow.innerText = "未建立连接！";
             return;
           }
           if (!(fileInput.files?.[0])) {
-            msgshow.innerText = "No file selected!";
+            msgshow.innerText = "未选择文件！";
             return;
           }
           const { file_name, file_type, file } = ((() => {
@@ -314,8 +314,8 @@
             });
           })());
           sendbtn.disabled = true;
-          sendbtn.innerText = `Sending... "${file_name}"`;
-          msgshow.innerText = "Sending metadata";
+          sendbtn.innerText = `正在发送... "${file_name}"`;
+          msgshow.innerText = "正在发送元数据";
           fileInput.value = "";
           const metadata = [
             await ((new Blob(["file_name", uint8zero, file_name])).arrayBuffer()),
@@ -325,7 +325,7 @@
             client.dc.send(chunk);
           }
 
-          msgshow.innerText = `Sending metadata... Counting chunks (${chunkSize} bytes = 1 chunk)`;
+          msgshow.innerText = `正在发送元数据... 分片计数中 (${chunkSize} 字节 = 1 分片)`;
           const chunk_count = new IntegerString;
           {
             let pendingSize = 0;
@@ -340,7 +340,7 @@
               while (nextSize >= chunkSize) {
                 chunk_count.increase();
                 nextSize -= chunkSize;
-                msgshow.innerText = `Sending metadata... Counting chunks ${chunk_count.getString()} (${chunkSize} bytes = 1 chunk)`;
+                msgshow.innerText = `正在发送元数据... 分片计数中 ${chunk_count.getString()} (${chunkSize} 字节 = 1 分片)`;
               }
               pendingSize = nextSize;
             }
@@ -354,7 +354,7 @@
               pendingSize -= chunkSize;
             }
           }
-          msgshow.innerText = `Sending metadata... ${chunk_count.getString()} chunks in total (${chunkSize} bytes = 1 chunk)`;
+          msgshow.innerText = `正在发送元数据... 分片共 ${chunk_count.getString()} 个 (${chunkSize} bytes = 1 chunk)`;
           console.log("chunk_count", chunk_count.getString());
           try {
             const chunk_head_with_max_index_blob = new Blob([chunk_count.getString(), uint8zero]);
@@ -372,7 +372,7 @@
             console.log("Test sending largest message succeeded");
           } catch (e) {
             console.error("Test sending largest message failed", e);
-            throw new Error("File too large, browser message size limitation exceeded when testing largest message");
+            throw new Error("文件过大! 尝试发送所需最大分片数据包时达到浏览器速率限制");
           }
           {
             let receiverNotReady = true;
@@ -401,7 +401,7 @@
           }
           metadata.length = 0;
 
-          msgshow.innerText = `start sending ${chunk_count.getString()} chunks (${chunkSize} bytes = 1 chunk)`;
+          msgshow.innerText = `开始发送 ${chunk_count.getString()} 个分片 (${chunkSize} bytes = 1 chunk)`;
           const promises = ((() => {
             if (chunksBeforeJoinPromises > 0) {
               return [];
@@ -442,29 +442,29 @@
             promises.push(sendChunk(chunk, chunkindex.getString()).then(() => {
               sentCount.increase();
             }));
-            msgshow.innerText = `sent ${sentCount.getString()}/${chunk_count.getString()} sending chunk(id=${chunkindex.getString()})`;
+            msgshow.innerText = `已发送 ${sentCount.getString()}/${chunk_count.getString()} 正在发送分片(id=${chunkindex.getString()})`;
             chunkindex.increase();
 
             if (chunk.byteLength !== chunkSize) {
               console.debug("Weird chunk size sending", chunk.byteLength);
             }
             if (promises.length >= chunksBeforeJoinPromises) {
-              msgshow.innerText = `sent ${sentCount.getString()}/${chunk_count.getString()} before next(id=${chunkindex.getString()}) joining last ${promises.length} chunks`;
+              msgshow.innerText = `已发送 ${sentCount.getString()}/${chunk_count.getString()} 发送下个分片(id=${chunkindex.getString()})之前 等待前${promises.length}个分片中`;
               for (const p of promises) {
                 await p;
               }
               promises.length = 0;
-              msgshow.innerText = `sent ${sentCount.getString()}/${chunk_count.getString()}`;
+              msgshow.innerText = `已发送 ${sentCount.getString()}/${chunk_count.getString()}`;
             }
           }
-          msgshow.innerText = `sent ${sentCount.getString()}/${chunk_count.getString()} joining last ${promises.length} chunks`;
+          msgshow.innerText = `已发送 ${sentCount.getString()}/${chunk_count.getString()} 正在等待最后${promises.length}个分片`;
           for (const p of promises) {
             await p;
           }
           if (sentCount.getString() !== chunk_count.getString()) {
             if (chunksBeforeJoinPromises > 0) {
               console.error("sent count mismatch", sentCount.getString(), chunk_count.getString());
-              msgshow.innerText = `Please wait: after joining all, unexpected mismatch ${sentCount.getString()}/${chunk_count.getString()}`;
+              msgshow.innerText = `请等待: 即使全部分片发送均已等待 已发送分片数仍未达到预期 ${sentCount.getString()}/${chunk_count.getString()}`;
             } else {
               console.debug("sent count mismatch", sentCount.getString(), chunk_count.getString());
             }
@@ -476,7 +476,7 @@
               });
             } while (sentCount.getString() !== chunk_count.getString());
           }
-          msgshow.innerText = `All finished! sent all ${chunk_count.getString()} chunks`;
+          msgshow.innerText = `全部完成！已发送${chunk_count.getString()}个分片`;
           console.log("sent", chunkindex.getString(), sentCount.getString(), "total", chunk_count.getString());
         })());
         stayUncaught.catch((err) => {
@@ -509,7 +509,7 @@
       await peer.setLocalDescription(await peer.createOffer());
       console.log(peer.localDescription);
       {
-        msgshow.innerText = "Waiting for STUN candidates";
+        msgshow.innerText = "正在获取STUN候选";
         const candidates = await promisedCandidates;
         msgshow.innerText = String();
         client = { peer };
@@ -537,9 +537,9 @@
 
       const connectevent = (async () => {
         if (String(client_acception_reply.value).length < 5 || String(invite.value).length < 5) {
-          throw new Error("reply is empty");
+          throw new Error("回函是空的");
         }
-        msgshow.innerText = "parsing reply";
+        msgshow.innerText = "解析回函中";
         const unzip = new Response((await fetch(client_acception_reply.value)).body.pipeThrough(new DecompressionStream("gzip")));
         const result = await unzip.json();
         console.log(result);
@@ -567,13 +567,13 @@
         }))());
         await (peer.setRemoteDescription(result.answer));
         await (peer.addIceCandidate(result.candidates));
-        msgshow.innerText = "Reply parsed. Waiting for socket...";
+        msgshow.innerText = "回函已解析 正在等待DataChannel连接建立";
         const { receiverReady } = await dcToBeReady;
 
         client.receiverReady = receiverReady;
         client.dc = dc;
 
-        msgshow.innerText = "Connected";
+        msgshow.innerText = "已连接";
         console.log("client join", client);
 
         invite.value = client_acception_reply.value = String();
@@ -597,10 +597,10 @@
         classList: ["connect-area"]
       }));
       const invite = inviteui.appendChild(Object.assign(document.createElement("label"), {
-        innerText: "Invite"
+        innerText: "邀请函"
       })).appendChild(document.createElement("input"));
       const acc = inviteui.appendChild(Object.assign(document.createElement("label"), {
-        innerText: "Reply"
+        innerText: "回函"
       })).appendChild(Object.assign(document.createElement("input"), {
         readOnly: true
       }));
@@ -612,7 +612,7 @@
         acc.select();
       });
       const joinbtn = Object.assign(inviteui.appendChild(document.createElement("button")), {
-        innerText: "try Connect"
+        innerText: "尝试连接"
       });
       const msgshow = receiverarea.appendChild(document.createElement("p"));
 
@@ -629,7 +629,7 @@
         joinbtn.disabled = true;
         if (String(invite.value).length < 5) {
           joinbtn.disabled = false;
-          throw new Error("Please paste invite");
+          throw new Error("请粘贴邀请函");
         }
         const unzip = new Response((await fetch(invite.value)).body.pipeThrough(new DecompressionStream("gzip")));
         const result = await (unzip.json());
@@ -655,7 +655,7 @@
         await (peer.setLocalDescription(await peer.createAnswer()));
         console.log(peer.localDescription);
         {
-          msgshow.innerText = "Waiting for STUN candidates";
+          msgshow.innerText = "正在获取STUN候选";
           const candidates = await promisedCandidates;
           msgshow.innerText = String();
           const answer = JSON.stringify({
@@ -680,7 +680,7 @@
         acc.disabled = false;
 
         console.log("trying to join");
-        msgshow.innerText = "Waiting for socket";
+        msgshow.innerText = "正在等待套接字连接建立";
         const dc = await promisedDC;
         console.log("dc created");
 
@@ -689,7 +689,7 @@
         invite.value = String();
         inviteui.style.display = "none";
         joinbtn.disabled = true;
-        msgshow.innerText = "Connected";
+        msgshow.innerText = "已连接";
 
         const dec = new TextDecoder;
         const unwrapIntoArrayBuffer = (async (data) => {
@@ -784,7 +784,7 @@
 
           dc.send("ready to receive");
           console.log("asked for chunks");
-          msgshow.innerText = `starting to receive ${chunkCount} chunks (1 chunk = ${chunkSize} bytes)`;
+          msgshow.innerText = `即将接收 ${chunkCount} 个分片 (1 分片 = ${chunkSize} 字节)`;
 
           const nextappendindex = new IntegerString;
           const readAllOrderedFromDatabase = (async function* () {
@@ -834,7 +834,7 @@
             }
             const chunkdata = data.slice(zeroindex + 1);
             receivedcount.increase();
-            msgshow.innerText = `received ${receivedcount.getString()}/${chunkCount} merged ${nextappendindex.getString()} (1 chunk = ${chunkSize} bytes)`;
+            msgshow.innerText = `已接收 ${receivedcount.getString()}/${chunkCount} 已合并 ${nextappendindex.getString()} (1 分片 = ${chunkSize} 字节)`;
 
             fallback_into_db: {
               if (chunkindex === nextappendindex.getString()) {
@@ -859,11 +859,11 @@
               });
             }
 
-            msgshow.innerText = `received ${receivedcount.getString()}/${chunkCount} merged ${nextappendindex.getString()} (1 chunk = ${chunkSize} bytes)`;
+            msgshow.innerText = `已接收 ${receivedcount.getString()}/${chunkCount} 已合并 ${nextappendindex.getString()} (1 分片 = ${chunkSize} 字节)`;
 
             if (nextappendindex.getString() === chunkCount) {
               console.log("all chunks received", nextappendindex.getString());
-              msgshow.innerText = `all chunks received ${nextappendindex.getString()}`;
+              msgshow.innerText = `全部分片已接收 ${nextappendindex.getString()}`;
               break;
             }
           }
@@ -898,7 +898,7 @@
             break using_offloadapi;
           }
           const offloadmsg = receiverarea.appendChild(document.createElement("p"));
-          offloadmsg.innerText = "using local API as stream reader";
+          offloadmsg.innerText = "即将使用客户端作为流接收器";
           let notflushed = false;
           const resetFlush = (() => {
             window.setTimeout(() => {
@@ -924,7 +924,7 @@
             parts.length = 0;
             const { result } = await (resp.json());
             if (result !== "ok") {
-              throw new Error("offloadapi failed to append chunk");
+              throw new Error("客户端写入分片失败");
             }
           });
           resetFlush();
@@ -944,20 +944,20 @@
             }
           }
           interrupted = true;
-          offloadmsg.innerText = "Flushing";
+          offloadmsg.innerText = "正在冲刷缓冲";
           if (parts.length > 0) {
             await saveChunks();
           }
           performance.clearMeasures("receive dur");
           const { result, file_path } = await ((await fetch("./.offloadapi-close")).json());
-          offloadmsg.innerText = `"${file_path}" has been received. status: ${result}`;
+          offloadmsg.innerText = `已接收 "${file_path}" 状态: ${result}`;
           return;
         }
         console.log("using Response as stream reader");
         {
-          msgshow.innerText = `Testing file creation: Waiting for metadata...`;
+          msgshow.innerText = `即将测试文件创建: 正在接收元数据...`;
           const chunkCount = await chunk_count;
-          msgshow.innerText = `Testing file creation: ${chunkCount} chunks`;
+          msgshow.innerText = `即将测试文件创建: 分片数量 ${chunkCount}`;
           const discard = (() => {
             return;
           });
@@ -966,7 +966,7 @@
             const chunkSize = await chunk_size;
             const testingStream = ((function* () {
               for (let chunkIndex = new IntegerString; chunkIndex.getString() !== chunkCount; chunkIndex.increase()) {
-                msgshow.innerText = `testing: appended chunks ${chunkIndex.getString()}/${chunkCount} (1 chunk = ${chunkSize} bytes)`;
+                msgshow.innerText = `测试中: 已追加分片 ${chunkIndex.getString()}/${chunkCount} (1 chunk = ${chunkSize} bytes)`;
                 const bytes = new Uint8Array(new ArrayBuffer(chunkSize));
                 for (let i = 0; i < chunkSize; i++) {
                   bytes[i] = Math.trunc(Math.random() * 128);
@@ -998,10 +998,10 @@
             console.debug("Response stress test passed", blob.size);
           } catch (e) {
             console.error("Response stress test failed", e);
-            throw new Error("File too large! Browser failed to create temp file. Please try again with embedserver");
+            throw new Error("文件过大! 浏览器无法创建临时文件 请使用客户端再试一次");
           }
           dc.removeEventListener("message", discard);
-          msgshow.innerText = "File creation test passed. Receiving...";
+          msgshow.innerText = "文件创建测试已通过 即将开始接收...";
           await ({ // give browser some time to free blob
             then(res, rej) {
               window.setTimeout(() => res(), 500);
@@ -1035,7 +1035,7 @@
         receiverarea.appendChild(Object.assign(document.createElement("a"), {
           href: URL.createObjectURL(file),
           download: ((await file_name) ?? "receive"),
-          innerText: "Download"
+          innerText: "下载"
         })).click();
       });
       joinbtn.addEventListener("click", async function listener() {
