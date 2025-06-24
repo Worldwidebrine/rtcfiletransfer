@@ -998,7 +998,7 @@
             console.debug("Response stress test passed", blob.size);
           } catch (e) {
             console.error("Response stress test failed", e);
-            throw new Error("文件过大! 浏览器无法创建临时文件 请使用客户端再试一次");
+            throw new Error("存储空间不足! 浏览器无法创建临时文件 请使用客户端再试一次");
           }
           dc.removeEventListener("message", discard);
           msgshow.innerText = "文件创建测试已通过 即将开始接收...";
