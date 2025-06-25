@@ -998,7 +998,7 @@
             console.debug("Response stress test passed", blob.size);
           } catch (e) {
             console.error("Response stress test failed", e);
-            throw new Error("File too large! Browser failed to create temp file. Please try again with embedserver");
+            throw new Error("Out of storage space! Browser failed to create temp file. Please try again with embedserver");
           }
           dc.removeEventListener("message", discard);
           msgshow.innerText = "File creation test passed. Receiving...";
